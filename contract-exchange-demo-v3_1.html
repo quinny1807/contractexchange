@@ -1,0 +1,618 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contract Exchange — Deal Walkthrough (V3 · Trial-first)</title>
+<style>
+  :root{
+    --ink:#17242C; --grey:#4C5B64; --faint:#C9D4DA; --line:#E3EAED;
+    --paper:#F4F7F8; --card:#FFFFFF;
+    --seller:#0E7C72; --seller-t:#EDF6F4;
+    --buyer:#2F6BC4;  --buyer-t:#EEF3FB;
+    --client:#6B5CA5; --client-t:#F2F0F8;
+    --mint:#7FD4BC; --mint-d:#3E8F7C; --mint-t:#E1F4EB;
+    --band:#132530; --band-sub:#9FB6C1;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box; margin:0}
+  html{scroll-behavior:smooth}
+  body{
+    font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--paper); color:var(--ink); padding:22px clamp(14px,3vw,36px) 40px;
+  }
+  .overline{font-size:10.5px; font-weight:800; letter-spacing:.24em; color:var(--grey); text-transform:uppercase}
+  .mono{font-family:var(--mono); font-variant-numeric:tabular-nums}
+
+  /* ---------- header ---------- */
+  header.top{display:flex; flex-wrap:wrap; gap:14px 24px; align-items:flex-end; justify-content:space-between; margin-bottom:16px}
+  .brand h1{font-size:clamp(19px,2.6vw,26px); font-weight:800; letter-spacing:-.01em; margin-top:3px}
+  .vbadge{background:var(--ink); color:#fff; font-size:10.5px; font-weight:800; letter-spacing:.12em; padding:6px 11px; border-radius:5px; white-space:nowrap}
+  .ledger{display:flex; align-items:center; gap:10px; flex-wrap:wrap; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 14px; margin-bottom:16px}
+  .ledger .sum{font-size:12.5px; color:var(--grey)}
+  .ledger .sum b{color:var(--ink); font-family:var(--mono)}
+  .inst{display:flex; gap:8px; flex-wrap:wrap}
+  .inst .pill{border:1px dashed var(--faint); color:var(--grey); border-radius:999px; padding:4px 11px; font-size:11.5px; font-weight:600}
+  .inst .pill .amt{font-family:var(--mono)}
+  .inst .pill.paid{border:1px solid var(--mint-d); border-style:solid; background:var(--mint-t); color:var(--mint-d)}
+  .inst .pill.paid::after{content:" ✓ direct"; font-weight:800}
+  .hint{font-size:12px; color:var(--grey); margin:0 0 14px}
+
+  /* ---------- stepper ---------- */
+  .stepper{display:grid; grid-template-columns:repeat(8,1fr); gap:6px; margin-bottom:14px}
+  .step{appearance:none; border:1px solid var(--line); background:var(--card); border-radius:10px; padding:8px 6px 7px; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:4px; transition:border-color .15s, background .15s}
+  .step .n{width:22px; height:22px; border-radius:50%; background:#fff; border:1.6px solid var(--faint); color:var(--grey); font-size:11px; font-weight:800; display:grid; place-items:center}
+  .step .lbl{font-size:10.5px; font-weight:700; color:var(--grey); text-align:center; line-height:1.15}
+  .step.done .n{background:var(--ink); border-color:var(--ink); color:#fff}
+  .step.done .lbl{color:var(--ink)}
+  .step.current{border-color:var(--ink)}
+  .step.current .n{background:var(--ink); border-color:var(--ink); color:#fff}
+  .step.current .lbl{color:var(--ink)}
+  .step.trial{background:var(--mint-t)}
+  .step.trial.current{border-color:var(--mint-d)}
+  .step.trial .tag{font-size:8.5px; font-weight:800; letter-spacing:.1em; color:var(--mint-d)}
+  .step:focus-visible{outline:2px solid var(--buyer); outline-offset:2px}
+
+  /* ---------- narration / platform band ---------- */
+  .narr{display:flex; flex-wrap:wrap; gap:12px 20px; align-items:center; justify-content:space-between; background:var(--band); color:#fff; border-radius:14px; padding:14px 18px; margin-bottom:16px}
+  .narr .left{display:flex; gap:14px; align-items:flex-start; min-width:min(560px,100%); flex:1}
+  .narr .num{flex:0 0 auto; width:30px; height:30px; border-radius:50%; background:#fff; color:var(--band); font-weight:800; display:grid; place-items:center; margin-top:2px}
+  .narr h2{font-size:16.5px; font-weight:800; letter-spacing:-.005em}
+  .narr p{font-size:12.8px; color:#D7E2E8; margin-top:2px; max-width:74ch}
+  .narr .right{display:flex; flex-direction:column; align-items:flex-end; gap:7px}
+  .chips{display:flex; gap:6px}
+  .chip{font-size:10px; font-weight:800; letter-spacing:.08em; padding:4px 9px; border-radius:5px; background:#fff; color:var(--band)}
+  .chip.money{background:var(--mint); color:var(--band)}
+  .chip.trial{background:var(--mint-t); color:var(--mint-d)}
+  .plat{font-size:11px; color:var(--band-sub)}
+  .plat b{color:#fff; font-weight:800; letter-spacing:.14em; font-size:10px}
+
+  /* ---------- panels ---------- */
+  .panels{display:grid; grid-template-columns:repeat(3,1fr); gap:14px}
+  .panel{background:var(--card); border:1px solid var(--line); border-radius:16px; overflow:hidden; display:flex; flex-direction:column}
+  .panel>header{display:flex; align-items:center; gap:9px; padding:11px 14px; border-bottom:1px solid var(--line)}
+  .panel>header .dot{width:10px; height:10px; border-radius:50%}
+  .panel>header .who{font-size:13.5px; font-weight:800}
+  .panel>header .role{font-size:11px; color:var(--grey); margin-left:auto; text-align:right}
+  .panel[data-p="seller"]>header{background:var(--seller-t)} .panel[data-p="seller"] .dot{background:var(--seller)}
+  .panel[data-p="buyer"]>header{background:var(--buyer-t)}   .panel[data-p="buyer"] .dot{background:var(--buyer)}
+  .panel[data-p="client"]>header{background:var(--client-t)} .panel[data-p="client"] .dot{background:var(--client)}
+  .pbody{padding:13px; display:flex; flex-direction:column; gap:11px; min-height:460px}
+
+  /* ---------- in-panel components ---------- */
+  .card{border:1px solid var(--line); border-radius:12px; padding:12px 13px; background:#fff}
+  .card h4{font-size:12.5px; font-weight:800; margin-bottom:8px; display:flex; align-items:center; gap:7px; flex-wrap:wrap}
+  .doc-id{font-family:var(--mono); font-size:10.5px; background:var(--ink); color:#fff; padding:2.5px 7px; border-radius:4px; letter-spacing:.04em}
+  .row{display:flex; justify-content:space-between; gap:10px; font-size:12.3px; padding:4.5px 0; border-bottom:1px dashed #EDF2F4}
+  .row:last-child{border-bottom:0}
+  .row .k{color:var(--grey)} .row .v{font-weight:650; text-align:right}
+  .pill{display:inline-block; font-size:10.5px; font-weight:750; padding:3.5px 9px; border-radius:999px; border:1px solid var(--line); color:var(--grey)}
+  .pill.live{border-color:var(--mint-d); color:var(--mint-d); background:var(--mint-t)}
+  .pill.grade{border-color:#B9C6CD; color:var(--grey); background:#F2F6F7}
+  .pill.warn{border-color:#C9D4DA; background:#F7FAFB}
+  .badges{display:flex; gap:6px; flex-wrap:wrap}
+  .badge{font-size:10.8px; font-weight:700; color:var(--mint-d); background:var(--mint-t); border:1px solid #BEE7D6; padding:3.5px 9px; border-radius:6px}
+  .check{list-style:none; display:flex; flex-direction:column; gap:6px; font-size:12.4px}
+  .check li{display:flex; gap:8px; align-items:flex-start}
+  .check li::before{content:"✓"; color:var(--mint-d); font-weight:800}
+  .check li.todo::before{content:"○"; color:var(--faint)}
+  .sig{display:flex; align-items:center; gap:9px; font-size:12.3px; padding:6px 0; border-bottom:1px dashed #EDF2F4}
+  .sig:last-child{border-bottom:0}
+  .sig .sdot{width:8px;height:8px;border-radius:50%}
+  .sig .t{margin-left:auto; color:var(--grey); font-size:11px; font-family:var(--mono)}
+  .sig b{font-weight:750}
+  .chat{display:flex; flex-direction:column; gap:8px}
+  .bubble{max-width:92%; padding:8px 11px; border-radius:12px; font-size:12.4px}
+  .bubble.them{background:#F1F5F6; border:1px solid var(--line); border-top-left-radius:4px}
+  .bubble.me{background:var(--client-t); border:1px solid #E2DDF0; align-self:flex-end; border-top-right-radius:4px}
+  .bubble .from{display:block; font-size:10px; font-weight:800; letter-spacing:.06em; color:var(--grey); margin-bottom:2px; text-transform:uppercase}
+  .empty{border:1.5px dashed var(--faint); border-radius:12px; padding:26px 16px; text-align:center; color:var(--grey); font-size:12.5px; margin:auto 0}
+  .empty .lock{font-size:20px; display:block; margin-bottom:6px}
+  .listing{border:1px solid var(--line); border-radius:12px; padding:11px 12px; display:flex; flex-direction:column; gap:7px}
+  .listing.hot{border-color:var(--buyer); box-shadow:0 0 0 3px var(--buyer-t)}
+  .listing.dim{opacity:.55}
+  .listing .l1{display:flex; justify-content:space-between; gap:8px; font-weight:750; font-size:12.6px}
+  .listing .l1 .amt{font-family:var(--mono)}
+  .listing .l2{font-size:11.6px; color:var(--grey)}
+  .pay{border:1px solid var(--line); border-radius:12px; padding:13px}
+  .pay .amt{font-family:var(--mono); font-size:22px; font-weight:800; letter-spacing:-.01em}
+  .pay .to{font-size:12.3px; color:var(--grey); margin:3px 0 8px}
+  .pay .bank{font-family:var(--mono); font-size:11.6px; background:#F4F7F8; border:1px solid var(--line); border-radius:7px; padding:7px 9px}
+  .note{font-size:11.4px; color:var(--grey)}
+  .note.mint{color:var(--mint-d); font-weight:650}
+  .btn{appearance:none; border:1px solid var(--line); background:#fff; color:var(--ink); font-weight:750; font-size:12.3px; padding:8px 13px; border-radius:9px; cursor:pointer}
+  .btn.primary{background:var(--ink); border-color:var(--ink); color:#fff}
+  .btn.ghost{color:var(--grey); background:#fff}
+  .btn:focus-visible{outline:2px solid var(--buyer); outline-offset:2px}
+  .btn.adv.primary{animation:pulse 1.8s ease-in-out infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(23,36,44,.28)} 55%{box-shadow:0 0 0 7px rgba(23,36,44,0)}}
+  .btnrow{display:flex; gap:8px; flex-wrap:wrap}
+  .banner{background:var(--mint-t); border:1px solid #BEE7D6; color:var(--mint-d); border-radius:12px; padding:12px 14px; font-weight:750; font-size:13px}
+  .fee .amt{font-family:var(--mono)}
+  .contact{display:flex; gap:10px; align-items:center}
+  .contact .avatar{width:34px;height:34px;border-radius:50%;background:var(--buyer-t);color:var(--buyer);font-weight:800;display:grid;place-items:center}
+  .contact .cd{font-size:12.3px}
+  .contact .cd b{display:block}
+
+  /* ---------- controls / footer ---------- */
+  .controls{display:flex; align-items:center; justify-content:center; gap:12px; margin:18px 0 6px}
+  .counter{font-size:12px; color:var(--grey); font-family:var(--mono)}
+  footer{margin-top:14px; font-size:11.3px; color:var(--grey); text-align:center}
+  footer b{color:var(--ink)}
+
+  @media (max-width:1020px){
+    .panels{grid-template-columns:1fr}
+    .pbody{min-height:0}
+    .stepper{grid-template-columns:repeat(4,1fr)}
+    .narr .right{align-items:flex-start}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .btn.adv.primary{animation:none}
+    html{scroll-behavior:auto}
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">
+    <span class="overline">Contract Exchange · Deal Walkthrough</span>
+    <h1>How a contract changes hands — three screens, one deal</h1>
+  </div>
+  <span class="vbadge">V3 · TRIAL-FIRST · $ DIRECT</span>
+</header>
+
+<div class="ledger">
+  <span class="sum">Sale price <b>$3,000</b> · paid as 3 × $1,000 <b style="font-family:inherit">direct</b> Buyer → Seller</span>
+  <div class="inst" id="ledger">
+    <span class="pill" data-i="0"><span class="amt">$1,000</span> · settlement</span>
+    <span class="pill" data-i="1"><span class="amt">$1,000</span> · day 30</span>
+    <span class="pill" data-i="2"><span class="amt">$1,000</span> · day 60</span>
+  </div>
+</div>
+
+<p class="hint">Advance with <b>Next</b>, the ← → keys, or the highlighted action inside a panel. The dark strip shows what the platform is doing behind the scenes at each step.</p>
+
+<nav class="stepper" id="stepper" aria-label="Deal steps"></nav>
+
+<section class="narr" aria-live="polite">
+  <div class="left">
+    <span class="num" id="nNum">1</span>
+    <div>
+      <h2 id="nTitle"></h2>
+      <p id="nBody"></p>
+    </div>
+  </div>
+  <div class="right">
+    <span class="chips" id="nChips"></span>
+    <span class="plat"><b>CONTRACT EXCHANGE</b> · <span id="nPlat"></span></span>
+  </div>
+</section>
+
+<main class="panels">
+  <article class="panel" data-p="seller">
+    <header><span class="dot"></span><span class="who">Ella — Ella's Cleaning Services</span><span class="role">Seller<br>outgoing provider</span></header>
+    <div class="pbody" id="pSeller"></div>
+  </article>
+  <article class="panel" data-p="buyer">
+    <header><span class="dot"></span><span class="who">Mark — Mark Super Clean</span><span class="role">Buyer<br>incoming provider</span></header>
+    <div class="pbody" id="pBuyer"></div>
+  </article>
+  <article class="panel" data-p="client">
+    <header><span class="dot"></span><span class="who">Skyline Properties (Priya)</span><span class="role">Client<br>service recipient</span></header>
+    <div class="pbody" id="pClient"></div>
+  </article>
+</main>
+
+<div class="controls">
+  <button class="btn" id="prevBtn">← Back</button>
+  <span class="counter" id="counter">Step 1 of 8</span>
+  <button class="btn primary" id="nextBtn">Next →</button>
+  <button class="btn ghost" id="playBtn" title="Auto-advance every few seconds">▶ Auto-play</button>
+</div>
+
+<footer>
+  Demo with illustrative names and figures · <b>Contract Exchange never holds funds</b> — every payment moves directly Buyer → Seller ·
+  DOC 1 = Contract Sale Agreement (Seller &amp; Buyer) · DOC 2 = Tripartite Transfer Agreement (all three; e-signable agreement, not a deed) · General information only — not legal advice.
+</footer>
+
+<script>
+"use strict";
+
+const emptyClient = (msg) => `
+  <div class="empty"><span class="lock">🔒</span>${msg}<br><span class="note">Service continues as normal.</span></div>`;
+
+const STEPS = [
+  /* ---------------------------------------------------------- 1 LIST & GRADE */
+  {
+    label:"List & grade",
+    title:"Ella lists the contract. The platform verifies it and grades the consent risk.",
+    body:"Contract and 14 months of invoices are sighted, then an anonymised listing goes live — suburb, scope and billing are public; Skyline's identity is hidden.",
+    plat:"Verify & grade listing",
+    chips:[],
+    seller:`
+      <div class="card">
+        <h4>New listing <span class="pill live">LIVE · anonymised</span></h4>
+        <div class="row"><span class="k">Contract</span><span class="v mono">Skyline_cleaning_agreement.pdf ✓</span></div>
+        <div class="row"><span class="k">Invoices</span><span class="v">14 uploaded ✓</span></div>
+        <div class="row"><span class="k">Scope</span><span class="v">Fortnightly clean · showroom, office, kitchenette, 2 amenities · 58 m²</span></div>
+        <div class="row"><span class="k">Suburb</span><span class="v">Rockingham WA</span></div>
+        <div class="row"><span class="k">Asking</span><span class="v mono">$3,000</span></div>
+      </div>
+      <div class="card">
+        <h4>Verification result</h4>
+        <div class="badges">
+          <span class="badge">Invoices sighted — 14 mo @ $1,000/mo avg</span>
+          <span class="badge">Tenure verified</span>
+          <span class="pill grade">Grade: CONSENT REQUIRED — written contract, silent on novation</span>
+        </div>
+      </div>`,
+    buyer:`
+      <div class="note">Marketplace · Rockingham + 15 km</div>
+      <div class="listing hot">
+        <div class="l1"><span>Commercial clean — Rockingham</span><span class="amt">$1,000/mo</span></div>
+        <div class="l2">Fortnightly · 58 m² · 14-month tenure · Invoices sighted ✓ · Consent required</div>
+        <div class="btnrow"><button class="btn primary adv">View listing</button></div>
+      </div>
+      <div class="listing dim">
+        <div class="l1"><span>Lawn round — Baldivis</span><span class="amt">$640/mo</span></div>
+        <div class="l2">Weekly · 11 homes · Fresh agreement</div>
+      </div>
+      <div class="listing dim">
+        <div class="l1"><span>Gym clean — Kwinana</span><span class="amt">$1,480/mo</span></div>
+        <div class="l2">Nightly · Transfer-ready ✓</div>
+      </div>
+      <div class="note">Client identity stays hidden until DOC 1 is signed.</div>`,
+    client: emptyClient("Nothing yet — the Client isn't part of this stage.")
+  },
+
+  /* ---------------------------------------------------------- 2 MATCH */
+  {
+    label:"Match",
+    title:"Mark asks questions anonymously. Price and structure are agreed.",
+    body:"Mark is already verified — ABN, insurance and police clearance sit on his profile. Q&A runs through the platform with both sides anonymised, then he offers the asking price as a 3-instalment earn-out.",
+    plat:"Anonymised match & Q&A",
+    chips:[],
+    seller:`
+      <div class="card">
+        <h4>Q&amp;A — Listing #CE-2841</h4>
+        <div class="chat">
+          <div class="bubble them"><span class="from">Verified buyer</span>Is any equipment included?</div>
+          <div class="bubble me"><span class="from">You</span>No — products only. The client supplies consumables.</div>
+          <div class="bubble them"><span class="from">Verified buyer</span>Why are you exiting?</div>
+          <div class="bubble me"><span class="from">You</span>Relocating to Fremantle — too far to service.</div>
+        </div>
+      </div>
+      <div class="card">
+        <h4>Offer received</h4>
+        <div class="row"><span class="k">Price</span><span class="v mono">$3,000</span></div>
+        <div class="row"><span class="k">Structure</span><span class="v">3 × $1,000 direct · settlement / day 30 / day 60</span></div>
+        <div class="btnrow" style="margin-top:8px"><button class="btn primary adv">Accept offer</button><button class="btn ghost" title="Demo — not wired">Counter</button></div>
+      </div>`,
+    buyer:`
+      <div class="card">
+        <h4>Listing #CE-2841 <span class="pill">Buyer verified ✓ — ABN · insurance · clearance</span></h4>
+        <div class="row"><span class="k">Billing</span><span class="v mono">$1,000/mo · 14 mo sighted</span></div>
+        <div class="row"><span class="k">Notice period</span><span class="v">30 days</span></div>
+        <div class="row"><span class="k">Grade</span><span class="v">Consent required</span></div>
+      </div>
+      <div class="card">
+        <h4>Your offer</h4>
+        <div class="row"><span class="k">Price</span><span class="v mono">$3,000</span></div>
+        <div class="row"><span class="k">Structure</span><span class="v">3 × $1,000 direct instalments</span></div>
+        <div class="note" style="margin-top:6px">Each later instalment is owed only while the client remains active — nothing is prepaid, so there's never a clawback.</div>
+        <div class="btnrow" style="margin-top:8px"><span class="pill live">Offer sent — awaiting seller</span></div>
+      </div>`,
+    client: emptyClient("Still nothing — matching happens without the Client.")
+  },
+
+  /* ---------------------------------------------------------- 3 DOC 1 */
+  {
+    label:"Sale agreement",
+    title:"DOC 1 is e-signed. Only now is the client's identity revealed to Mark.",
+    body:"The Contract Sale Agreement carries the price, the earn-out schedule, trial terms, a non-circumvention clause on Mark and a restraint on Ella — all conditional on client consent.",
+    plat:"Generate documents",
+    chips:[{t:"DOC 1"}],
+    seller:`
+      <div class="card">
+        <h4><span class="doc-id">DOC 1</span> Contract Sale Agreement</h4>
+        <div class="row"><span class="k">Price</span><span class="v mono">$3,000</span></div>
+        <div class="row"><span class="k">Payment</span><span class="v">3 × $1,000 direct · settle / d30 / d60</span></div>
+        <div class="row"><span class="k">Trial</span><span class="v">2 shadow visits</span></div>
+        <div class="row"><span class="k">Non-circumvention (buyer)</span><span class="v">24 months</span></div>
+        <div class="row"><span class="k">Restraint (seller)</span><span class="v">18 months · 5 km</span></div>
+        <div class="row"><span class="k">Condition</span><span class="v">Client consent by 31 Aug</span></div>
+        <div class="sig"><span class="sdot" style="background:var(--seller)"></span><b>Ella M.</b> — signed<span class="t">Sat 11 Jul · 10:42</span></div>
+        <div class="sig"><span class="sdot" style="background:var(--buyer)"></span><b>Mark D.</b> — signed<span class="t">Sat 11 Jul · 10:47</span></div>
+      </div>`,
+    buyer:`
+      <div class="card">
+        <h4><span class="doc-id">DOC 1</span> Contract Sale Agreement</h4>
+        <div class="sig"><span class="sdot" style="background:var(--seller)"></span><b>Ella M.</b> — signed<span class="t">Sat 11 Jul · 10:42</span></div>
+        <div class="sig"><span class="sdot" style="background:var(--buyer)"></span><b>Mark D.</b> — signed<span class="t">Sat 11 Jul · 10:47</span></div>
+      </div>
+      <div class="card">
+        <h4>🔓 Client revealed</h4>
+        <div class="row"><span class="k">Client</span><span class="v">Skyline Properties</span></div>
+        <div class="row"><span class="k">Site</span><span class="v">12 Harbour Rd, Rockingham</span></div>
+        <div class="row"><span class="k">Contact</span><span class="v">Priya N. — office manager</span></div>
+        <div class="note" style="margin-top:6px">Non-circumvention now applies: going around the platform forfeits the warranties and inherits Ella's restraint.</div>
+        <div class="btnrow" style="margin-top:8px"><button class="btn primary adv">Continue → soft intro</button></div>
+      </div>`,
+    client: emptyClient("Unaware — the deal is still between the two providers.")
+  },
+
+  /* ---------------------------------------------------------- 4 SOFT INTRO */
+  {
+    label:"Soft intro",
+    title:"Ella raises it with Priya in person — a conversation, not a document.",
+    body:"The platform supplies the script. The client's first contact with the deal is her own cleaner saying 'meet the person who'll shadow me', which is the least alarming version she will ever hear.",
+    plat:"Soft-intro script",
+    chips:[],
+    seller:`
+      <div class="card">
+        <h4>Soft-intro kit</h4>
+        <div class="bubble them" style="max-width:100%">"I'm handing my run over to Mark Super Clean — he'll work alongside me for the next two visits. If you're happy, we'll formalise it. Same price, same scope, nothing changes for you."</div>
+        <ul class="check" style="margin-top:9px">
+          <li>Raise it at a normal visit — Thu 16 Jul</li>
+          <li>Keep it verbal — no documents yet</li>
+          <li>Offer the shadow visits before any signing</li>
+        </ul>
+        <div class="btnrow" style="margin-top:9px"><button class="btn primary adv">Conversation done — set trial dates</button></div>
+      </div>`,
+    buyer:`
+      <div class="card">
+        <h4>Waiting on intro</h4>
+        <div class="note">Ella is introducing the handover at Thursday's visit. You'll be notified when trial dates are locked.</div>
+        <div class="row" style="margin-top:6px"><span class="k">Proposed trial visits</span><span class="v">Thu 30 Jul · Thu 13 Aug</span></div>
+      </div>`,
+    client:`
+      <div class="note">Thu 16 Jul · during the regular clean</div>
+      <div class="card">
+        <div class="chat">
+          <div class="bubble them"><span class="from">Ella</span>I'm handing my run over to Mark Super Clean — he'll work alongside me the next two visits. If you're happy, we'll formalise it. Same price, same scope.</div>
+          <div class="bubble me"><span class="from">Priya — Skyline</span>Okay — happy to meet him. Thursday works.</div>
+        </div>
+      </div>
+      <span class="pill">Consent touch #1 — conversation only, nothing signed</span>`
+  },
+
+  /* ---------------------------------------------------------- 5 TRIAL */
+  {
+    label:"Working trial",
+    title:"Two cycles side by side. The scope gets verified and the stranger becomes a face.",
+    body:"Mark checks the real site against the listing; Priya meets the person who'll hold her keys. Either side can walk away and the listing simply relists — no clawback, no debt, because nothing has been paid.",
+    plat:"Trial window · exit = relist",
+    chips:[{t:"TRIAL PHASE", c:"trial"}],
+    seller:`
+      <div class="card">
+        <h4>Shadow visits</h4>
+        <ul class="check">
+          <li>Visit 1 — Thu 30 Jul · walkthrough, keys &amp; alarm shown</li>
+          <li>Visit 2 — Thu 13 Aug · full clean side by side</li>
+          <li>Handover notes shared — alarm quirks, bin day, roller door</li>
+        </ul>
+      </div>
+      <div class="btnrow"><button class="btn ghost" title="In the live product this relists the contract">Exit trial → relist</button></div>`,
+    buyer:`
+      <div class="card">
+        <h4>Trial checklist</h4>
+        <ul class="check">
+          <li>Visit 1 ✓ — access, alarm, consumables store</li>
+          <li>Visit 2 ✓ — full scope run, timings confirmed</li>
+          <li>Scope matches listing — note: showroom mopping resumes when reno finishes</li>
+        </ul>
+        <div class="btnrow" style="margin-top:9px">
+          <button class="btn primary adv">Happy — continue to transfer</button>
+          <button class="btn ghost" title="In the live product this relists the contract">Exit trial → relist</button>
+        </div>
+      </div>`,
+    client:`
+      <div class="card">
+        <h4>You've now met Mark on site</h4>
+        <div class="note">Two visits alongside Ella — same scope, same schedule, same price.</div>
+        <div class="btnrow" style="margin-top:9px">
+          <button class="btn primary adv">Happy to formalise</button>
+          <button class="btn ghost" title="In the live product this ends the deal — the listing relists">Not yet</button>
+        </div>
+      </div>
+      <span class="pill">Either side can exit — the listing simply relists</span>`
+  },
+
+  /* ---------------------------------------------------------- 6 DOC 2 */
+  {
+    label:"Tripartite e-sign",
+    title:"DOC 2 — all three sign. By now it's a formality.",
+    body:"One e-signable agreement ends the Ella–Skyline contract and starts an identical one with Mark on the same date. Priya is keeping a provider she's already met, not approving a stranger on paper.",
+    plat:"E-sign collected",
+    chips:[{t:"DOC 2"}],
+    seller:`
+      <div class="card">
+        <h4><span class="doc-id">DOC 2</span> Tripartite Transfer Agreement</h4>
+        <div class="row"><span class="k">Old agreement ends</span><span class="v">Sun 16 Aug</span></div>
+        <div class="row"><span class="k">New identical agreement</span><span class="v">Mon 17 Aug — Mark Super Clean</span></div>
+        <div class="row"><span class="k">Invoices before 17 Aug</span><span class="v">Stay with Ella</span></div>
+        <div class="sig"><span class="sdot" style="background:var(--seller)"></span><b>Ella M.</b><span class="t">Fri 14 Aug · 9:02</span></div>
+        <div class="sig"><span class="sdot" style="background:var(--buyer)"></span><b>Mark D.</b><span class="t">Fri 14 Aug · 9:05</span></div>
+        <div class="sig"><span class="sdot" style="background:var(--client)"></span><b>Priya N. — Skyline</b><span class="t">Fri 14 Aug · 11:38</span></div>
+      </div>`,
+    buyer:`
+      <div class="card">
+        <h4><span class="doc-id">DOC 2</span> Tripartite Transfer Agreement</h4>
+        <div class="sig"><span class="sdot" style="background:var(--seller)"></span><b>Ella M.</b><span class="t">Fri 14 Aug · 9:02</span></div>
+        <div class="sig"><span class="sdot" style="background:var(--buyer)"></span><b>Mark D.</b><span class="t">Fri 14 Aug · 9:05</span></div>
+        <div class="sig"><span class="sdot" style="background:var(--client)"></span><b>Priya N. — Skyline</b><span class="t">Fri 14 Aug · 11:38</span></div>
+        <div class="btnrow" style="margin-top:8px"><button class="btn primary adv">Continue → settlement</button></div>
+      </div>`,
+    client:`
+      <div class="card">
+        <h4><span class="doc-id">DOC 2</span> Your provider is changing</h4>
+        <div class="row"><span class="k">From Mon 17 Aug</span><span class="v">Mark Super Clean</span></div>
+        <div class="row"><span class="k">Price &amp; scope</span><span class="v">Unchanged</span></div>
+        <div class="row"><span class="k">Schedule</span><span class="v">Fortnightly Thursdays — unchanged</span></div>
+        <div class="sig"><span class="sdot" style="background:var(--client)"></span><b>Signed — Priya N.</b><span class="t">Fri 14 Aug · 11:38</span></div>
+      </div>`
+  },
+
+  /* ---------------------------------------------------------- 7 SETTLE */
+  {
+    label:"Settle & handover",
+    title:"Instalment 1 moves Buyer → Seller, directly. Keys and codes change hands.",
+    body:"Contract Exchange confirms both sides have marked the payment — it never touches the money. The platform's own success fee is invoiced to the seller now, because now the deal actually completed.",
+    plat:"Confirm paid · success fee",
+    chips:[{t:"$ DIRECT", c:"money"}],
+    seller:`
+      <div class="card">
+        <h4>Payment received</h4>
+        <div class="row"><span class="k">Instalment 1 of 3</span><span class="v mono">$1,000 ✓</span></div>
+        <div class="row"><span class="k">Method</span><span class="v">Direct bank transfer from Mark</span></div>
+        <div class="btnrow" style="margin-top:8px"><span class="pill live">Confirmed received — Mon 17 Aug</span></div>
+      </div>
+      <div class="card">
+        <h4>Handover — given</h4>
+        <ul class="check"><li>Keys × 2</li><li>Alarm code</li><li>Site induction with Priya</li></ul>
+      </div>
+      <div class="card fee">
+        <h4>Contract Exchange success fee</h4>
+        <div class="row"><span class="k">Invoiced to seller</span><span class="v"><span class="amt">$149</span> (illustrative)</span></div>
+      </div>`,
+    buyer:`
+      <div class="pay">
+        <h4 style="margin-bottom:6px">Instalment 1 — pay Ella directly</h4>
+        <div class="amt">$1,000</div>
+        <div class="to">Ella's Cleaning Services</div>
+        <div class="bank">BSB 066-XXX · ACC ····1234 · Ref CE-2841</div>
+        <div class="note mint" style="margin:8px 0 9px">Contract Exchange never holds funds — this leaves your bank and lands in hers.</div>
+        <div class="btnrow"><button class="btn primary adv">Mark as paid</button></div>
+      </div>
+      <div class="card">
+        <h4>Handover — received</h4>
+        <ul class="check"><li>Keys × 2</li><li>Alarm code</li><li>Site induction done</li></ul>
+      </div>`,
+    client:`
+      <div class="banner">Handover complete — your provider is now Mark Super Clean.</div>
+      <div class="card">
+        <div class="contact">
+          <span class="avatar">M</span>
+          <span class="cd"><b>Mark D. — Mark Super Clean</b>0400 XXX XXX · mark@marksuperclean.com.au</span>
+        </div>
+        <div class="row" style="margin-top:9px"><span class="k">Next clean</span><span class="v">Thu 27 Aug</span></div>
+      </div>`
+  },
+
+  /* ---------------------------------------------------------- 8 EARN-OUT */
+  {
+    label:"Earn-out",
+    title:"Day 30 and day 60: the platform pings, both attest, money moves direct.",
+    body:"Each instalment is owed only while Skyline remains active — or if she left through Mark's own fault. If she ever leaves otherwise, the payments simply stop: nothing was prepaid, so there is no clawback and no debt to chase.",
+    plat:"Instalment pings: day 30 & 60",
+    chips:[{t:"$ DIRECT", c:"money"}],
+    seller:`
+      <div class="card">
+        <h4>Day 30 — Wed 16 Sep</h4>
+        <div class="row"><span class="k">Is Skyline still active?</span><span class="v">You: Yes ✓ · Mark: Yes ✓</span></div>
+        <div class="row"><span class="k">Instalment 2</span><span class="v mono">$1,000 received ✓</span></div>
+      </div>
+      <div class="card">
+        <h4>Day 60 — Fri 16 Oct</h4>
+        <div class="row"><span class="k">Is Skyline still active?</span><span class="v">You: Yes ✓ · Mark: Yes ✓</span></div>
+        <div class="row"><span class="k">Instalment 3</span><span class="v mono">$1,000 received ✓</span></div>
+      </div>
+      <div class="banner">Deal complete — $3,000 settled, all direct.</div>
+      <span class="pill warn">Your restraint is active — 18 months, 5 km</span>`,
+    buyer:`
+      <div class="card">
+        <h4>Day 30 — Wed 16 Sep</h4>
+        <div class="row"><span class="k">Attestation</span><span class="v">Client active — Yes ✓</span></div>
+        <div class="row"><span class="k">Instalment 2</span><span class="v mono">$1,000 paid direct ✓</span></div>
+      </div>
+      <div class="card">
+        <h4>Day 60 — Fri 16 Oct</h4>
+        <div class="row"><span class="k">Attestation</span><span class="v">Client active — Yes ✓</span></div>
+        <div class="row"><span class="k">Instalment 3</span><span class="v mono">$1,000 paid direct ✓</span></div>
+      </div>
+      <div class="banner">Deal complete — the round is yours.</div>`,
+    client:`
+      <div class="card">
+        <h4>Service continues as normal</h4>
+        <div class="row"><span class="k">Provider</span><span class="v">Mark Super Clean</span></div>
+        <div class="row"><span class="k">Next clean</span><span class="v">Thu 24 Sep</span></div>
+        <div class="row"><span class="k">Price &amp; scope</span><span class="v">Unchanged</span></div>
+      </div>
+      <div class="note">The earn-out runs quietly between the two providers — nothing more is asked of the Client.</div>`
+  }
+];
+
+/* ------------------------------------------------ state + rendering */
+let idx = 0;
+let timer = null;
+
+const $ = (s) => document.querySelector(s);
+const stepper = $("#stepper");
+
+STEPS.forEach((s, i) => {
+  const b = document.createElement("button");
+  b.className = "step" + (i === 4 ? " trial" : "");
+  b.setAttribute("aria-label", "Step " + (i + 1) + ": " + s.label);
+  b.innerHTML = '<span class="n">' + (i + 1) + '</span><span class="lbl">' + s.label + '</span>' +
+                (i === 4 ? '<span class="tag">TRIAL</span>' : '');
+  b.addEventListener("click", () => go(i));
+  stepper.appendChild(b);
+});
+
+function render() {
+  const s = STEPS[idx];
+  [...stepper.children].forEach((el, i) => {
+    el.classList.toggle("done", i < idx);
+    el.classList.toggle("current", i === idx);
+    if (i === idx) el.setAttribute("aria-current", "step"); else el.removeAttribute("aria-current");
+  });
+  $("#nNum").textContent = idx + 1;
+  $("#nTitle").textContent = s.title;
+  $("#nBody").textContent = s.body;
+  $("#nPlat").textContent = s.plat;
+  $("#nChips").innerHTML = (s.chips || []).map(c => '<span class="chip ' + (c.c || "") + '">' + c.t + '</span>').join("");
+  $("#pSeller").innerHTML = s.seller;
+  $("#pBuyer").innerHTML = s.buyer;
+  $("#pClient").innerHTML = s.client;
+  $("#counter").textContent = "Step " + (idx + 1) + " of 8";
+  $("#prevBtn").disabled = idx === 0;
+  $("#nextBtn").disabled = idx === STEPS.length - 1;
+  const paid = idx >= 7 ? 3 : (idx >= 6 ? 1 : 0);
+  [...$("#ledger").children].forEach((p, i) => p.classList.toggle("paid", i < paid));
+}
+
+function go(i) {
+  idx = Math.max(0, Math.min(STEPS.length - 1, i));
+  render();
+}
+function next() { go(idx + 1); }
+function prev() { go(idx - 1); }
+
+$("#nextBtn").addEventListener("click", () => { stopPlay(); next(); });
+$("#prevBtn").addEventListener("click", () => { stopPlay(); prev(); });
+document.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowRight") { stopPlay(); next(); }
+  if (e.key === "ArrowLeft")  { stopPlay(); prev(); }
+});
+document.addEventListener("click", (e) => {
+  const a = e.target.closest(".adv");
+  if (a) { stopPlay(); next(); }
+});
+
+function stopPlay() {
+  if (timer) { clearInterval(timer); timer = null; $("#playBtn").textContent = "▶ Auto-play"; }
+}
+$("#playBtn").addEventListener("click", () => {
+  if (timer) { stopPlay(); return; }
+  $("#playBtn").textContent = "⏸ Pause";
+  timer = setInterval(() => {
+    if (idx >= STEPS.length - 1) { stopPlay(); return; }
+    next();
+  }, 4500);
+});
+
+render();
+</script>
+</body>
+</html>
